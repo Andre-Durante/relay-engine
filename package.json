@@ -1,0 +1,47 @@
+{
+  "name": "relay-engine",
+  "version": "1.0.0",
+  "description": "REST API for tracking package delivery events and delivery statistics.",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "predev": "npm run db:generate",
+    "dev": "tsx watch src/server.ts",
+    "prebuild": "npm run db:generate",
+    "build": "tsc -p tsconfig.json",
+    "start": "node dist/server.js",
+    "pretest": "npm run db:generate",
+    "test": "npm run test:unit",
+    "test:unit": "vitest run",
+    "test:integration": "vitest run --config vitest.integration.config.ts",
+    "test:all": "npm run build && npm run test:unit && npm run test:integration",
+    "test:watch": "vitest",
+    "db:generate": "node scripts/prisma-generate.mjs",
+    "db:migrate": "prisma migrate dev",
+    "db:deploy": "prisma migrate deploy",
+    "db:studio": "prisma studio"
+  },
+  "dependencies": {
+    "@fastify/multipart": "^10.0.0",
+    "@prisma/adapter-pg": "^7.8.0",
+    "@prisma/client": "^7.8.0",
+    "csv-parse": "^5.6.0",
+    "dotenv": "^17.4.2",
+    "fastify": "^5.8.5",
+    "pg": "^8.20.0",
+    "zod": "^3.23.8"
+  },
+  "devDependencies": {
+    "@types/node": "^20.17.6",
+    "prisma": "^7.8.0",
+    "tsx": "^4.19.2",
+    "typescript": "^5.9.3",
+    "vitest": "^4.1.6"
+  },
+  "engines": {
+    "node": ">=20"
+  },
+  "overrides": {
+    "@hono/node-server": "^1.19.13"
+  }
+}

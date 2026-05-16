@@ -1,0 +1,55 @@
+generator client {
+  provider = "prisma-client"
+  output   = "../src/generated/prisma/client"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+enum Region {
+  north
+  south
+  east
+  west
+}
+
+enum DeliveryStatus {
+  picked_up
+  in_transit
+  delivered
+  failed
+  returned
+}
+
+model Driver {
+  driverId    String          @id @map("driver_id")
+  name        String
+  phoneNumber String          @map("phone_number")
+  email       String
+  region      Region
+  createdAt   DateTime        @default(now()) @map("created_at")
+  updatedAt   DateTime        @updatedAt @map("updated_at")
+  events      DeliveryEvent[]
+
+  @@index([region])
+  @@map("drivers")
+}
+
+model DeliveryEvent {
+  id        String         @id @default(cuid())
+  packageId String         @map("package_id")
+  driverId  String         @map("driver_id")
+  status    DeliveryStatus
+  timestamp DateTime
+  createdAt DateTime       @default(now()) @map("created_at")
+  driver    Driver         @relation(fields: [driverId], references: [driverId], onDelete: Restrict)
+
+  @@index([driverId])
+  @@index([packageId])
+  @@index([status])
+  @@index([timestamp])
+  @@index([packageId, timestamp])
+  @@index([driverId, timestamp])
+  @@map("delivery_events")
+}
