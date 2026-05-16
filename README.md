@@ -498,6 +498,104 @@ Metric definitions:
 
 `returned` is tracked, but it does not count as `failed`.
 
+## Optional Kafka Publishing
+
+This branch includes an optional Kafka publisher for delivery events.
+
+Kafka is disabled by default. The normal REST API works without Kafka, so this is an optional extra.
+
+When Kafka is enabled, the flow is:
+
+```text
+POST /delivery-events
+  -> validate request
+  -> save event in PostgreSQL
+  -> try to publish the saved event to Kafka
+  -> return the saved event
+```
+
+Publishing is best-effort in this branch. PostgreSQL remains the source of truth. If Kafka is unavailable after the event is saved, the API logs a warning and still returns success.
+
+Enable Kafka in your local `.env` file:
+
+```text
+KAFKA_ENABLED=true
+KAFKA_CLIENT_ID=relay-engine
+KAFKA_BROKERS=localhost:9092
+KAFKA_DELIVERY_EVENTS_TOPIC=delivery-events
+```
+
+Do not edit `.env.example` for local testing. It is only the template. If you do not have `.env` yet, create it first:
+
+```bash
+cp .env.example .env
+```
+
+Start the optional Kafka container:
+
+```bash
+docker compose --profile kafka up -d kafka
+```
+
+Create the topic before starting a consumer. This avoids a harmless `UNKNOWN_TOPIC_OR_PARTITION` warning when the topic does not exist yet:
+
+```bash
+docker compose exec kafka /opt/kafka/bin/kafka-topics.sh \
+  --bootstrap-server localhost:9092 \
+  --create \
+  --if-not-exists \
+  --topic delivery-events
+```
+
+Start or restart the API after setting `KAFKA_ENABLED=true`:
+
+```bash
+npm run dev
+```
+
+Open another terminal and watch Kafka messages:
+
+```bash
+docker compose exec kafka /opt/kafka/bin/kafka-console-consumer.sh \
+  --bootstrap-server localhost:9092 \
+  --topic delivery-events \
+  --from-beginning
+```
+
+Then create a delivery event through the API:
+
+```bash
+curl -X POST http://localhost:3000/delivery-events \
+  -H "Content-Type: application/json" \
+  -d '{
+    "packageId": "KAFKA-1001",
+    "driverId": "1",
+    "status": "picked_up",
+    "timestamp": "2026-05-16T10:00:00.000Z"
+  }'
+```
+
+The Kafka consumer should print a message like this:
+
+```json
+{
+  "eventId": "event-id",
+  "packageId": "KAFKA-1001",
+  "driverId": "1",
+  "status": "picked_up",
+  "timestamp": "2026-05-16T10:00:00.000Z",
+  "createdAt": "2026-05-16T08:30:00.000Z"
+}
+```
+
+Stop Kafka when you do not need it:
+
+```bash
+docker compose --profile kafka stop kafka
+```
+
+This is intentionally not the full outbox pattern. A production-grade version would store an outbox event in the same database transaction, publish from a background worker, and mark the outbox event as sent.
+
 ## Validation And Errors
 
 Validation errors return:
@@ -573,6 +671,7 @@ npm run db:migrate   # create/apply local development migrations
 npm run db:generate  # generate Prisma Client
 npm run db:studio    # open Prisma Studio
 docker compose down  # stop PostgreSQL
+docker compose --profile kafka up -d kafka # start optional Kafka
 ```
 
 ## Automated Checks

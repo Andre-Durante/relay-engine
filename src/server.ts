@@ -1,6 +1,7 @@
 import { env } from "./config/env.js";
 import { prisma } from "./db/prisma.js";
 import { buildApp } from "./app.js";
+import { deliveryEventPublisher } from "./modules/delivery-events/delivery-events.publisher.js";
 
 const app = await buildApp();
 
@@ -9,6 +10,7 @@ const shutdown = async () => {
   // Close the HTTP server and database connection so local runs and containers
   // stop cleanly when they receive Ctrl+C or a termination signal.
   await app.close();
+  await deliveryEventPublisher.disconnect();
   await prisma.$disconnect();
 };
 
