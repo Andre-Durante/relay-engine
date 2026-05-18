@@ -1,13 +1,20 @@
 import type { FastifyReply, FastifyRequest } from "fastify";
+import type { MultipartFile } from "@fastify/multipart";
 import { badRequest } from "../../common/errors.js";
 import { DriversService } from "./drivers.service.js";
+
+type UploadDriversBody = {
+  file?: MultipartFile;
+};
 
 export class DriversController {
   constructor(private readonly driversService = new DriversService()) {}
 
   uploadDrivers = async (request: FastifyRequest, reply: FastifyReply) => {
-    // The route expects multipart/form-data with a field named `file`.
-    const uploadedFile = await request.file();
+    // The route expects multipart/form-data with a field named `file`. Fastify's
+    // multipart plugin attaches the parsed file to the request body so Swagger
+    // can validate and document it as a real file upload.
+    const uploadedFile = (request.body as UploadDriversBody | undefined)?.file;
 
     if (!uploadedFile) {
       throw badRequest("Multipart file field 'file' is required");

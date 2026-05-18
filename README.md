@@ -2,13 +2,14 @@
 
 Relay Engine is a small REST API.
 
-It lets you:
+It can:
 
 - upload drivers from a CSV or tab-separated file
-- record delivery events for packages
-- ask for delivery statistics by driver, region, metric, and date range
+- record package delivery events
+- query delivery statistics by driver, region, metric, and date range
+- show API documentation with Swagger
 
-The app has no UI. You test it with HTTP requests, for example with `curl` or Postman.
+The app has no product UI. You can test it with Swagger, `curl`, Postman, or any HTTP client.
 
 ## Tech Stack
 
@@ -16,13 +17,12 @@ The app has no UI. You test it with HTTP requests, for example with `curl` or Po
 - Fastify
 - PostgreSQL
 - Prisma 7
-- Docker Compose
 - Zod validation
+- Swagger / OpenAPI
 - Vitest
+- Docker Compose
 
 ## Requirements
-
-Install these before running the project:
 
 - Node.js 20 or newer
 - npm
@@ -31,7 +31,7 @@ Install these before running the project:
 
 ## Quick Start
 
-From the project folder, create your local environment file:
+Create your local environment file:
 
 ```bash
 cp .env.example .env
@@ -49,7 +49,7 @@ Install dependencies:
 npm install
 ```
 
-Apply the database migration:
+Apply the database migrations:
 
 ```bash
 npm run db:deploy
@@ -61,38 +61,71 @@ Start the API:
 npm run dev
 ```
 
-The API runs at:
+Open:
 
-```text
-http://localhost:3000
-```
-
-Keep this terminal open while testing.
+- API: `http://localhost:3000`
+- Swagger docs: `http://localhost:3000/docs`
+- OpenAPI JSON: `http://localhost:3000/docs/json`
 
 ## Start Fresh
 
 Use this when you want to delete all local data and test again from an empty database.
 
-Make sure PostgreSQL is running:
-
 ```bash
 docker compose up -d postgres
-```
-
-Reset the database:
-
-```bash
 npx prisma migrate reset --force
 ```
 
-After this, the database is empty.
+`prisma migrate reset` drops the local database, recreates it, and applies the migrations again.
 
-## Manual Test Guide
+After this, the database is empty and ready for a fresh manual test.
+
+## Test With Swagger
+
+Start the API with `npm run dev`, then open:
+
+```text
+http://localhost:3000/docs
+```
+
+Use these endpoints in order:
+
+1. `GET /health`
+2. `POST /drivers/upload`
+3. `POST /delivery-events`
+4. `GET /delivery-statistics`
+
+For `POST /drivers/upload`, click **Try it out**, choose your CSV file, and execute the request. Use the file picker; do not paste the CSV text into the field.
+
+For `POST /delivery-events`, use this body:
+
+```json
+{
+  "packageId": "PKG-1001",
+  "driverId": "1",
+  "status": "delivered",
+  "timestamp": "2026-05-15T10:00:00.000Z"
+}
+```
+
+For `GET /delivery-statistics`, try this after creating the delivery event above:
+
+```text
+metric=total_packages
+driverIds=1
+regions=north
+from=2026-05-15
+to=2026-05-15
+```
+
+Expected `value`: `1`.
+
+## Test With Curl
 
 Open two terminals:
 
-- Terminal 1: run the API with `npm run dev`
-- Terminal 2: run the `curl` commands below
+- Terminal 1: `npm run dev`
+- Terminal 2: run the commands below
 
 ### 1. Check The API
 
@@ -108,22 +141,20 @@ Expected response:
 
 ### 2. Upload Drivers
 
-The upload endpoint accepts comma-separated files and tab-separated files.
+The upload accepts comma-separated files and tab-separated files.
 
-Your file can look like this:
+Example file content:
 
 ```text
-driver_id	name	phone_number	email	region
-1	Dwayne Jhonson	+35312341234	jhonson@gmail.com	North
-2	The Rock	+353213213213	rock@gmail.com	South
-3	Pikachu	+353312312312	pikachu@gmail.com	south
-4	I wanna retire	+353412412412	retire@gmail.com	west
-5	Please	+353512351235	please@gmail.com	east
+driver_id,name,phone_number,email,region
+1,Dwayne Jhonson,+35312341234,jhonson@gmail.com,North
+2,The Rock,+353213213213,rock@gmail.com,South
+3,Pikachu,+353312312312,pikachu@gmail.com,south
+4,I wanna retire,+353412412412,retire@gmail.com,west
+5,Please God,+353512351235,please@gmail.com,east
 ```
 
-Regions are case-insensitive on upload, so `North` becomes `north`.
-
-Upload a file (Downloads was used as example):
+Upload your file from Downloads:
 
 ```bash
 curl -X POST http://localhost:3000/drivers/upload \
@@ -132,7 +163,7 @@ curl -X POST http://localhost:3000/drivers/upload \
 
 Replace `csvFile.csv` with your real filename.
 
-Expected response for the sample file above:
+Expected response for the sample file:
 
 ```json
 {"imported":5}
@@ -142,78 +173,42 @@ Uploading the same driver ID again updates that driver.
 
 ### 3. Add Delivery Events
 
-Add one delivered package for driver `1`:
+Run these commands to create 5 packages for driver `1`.
 
 ```bash
 curl -X POST http://localhost:3000/delivery-events \
   -H "Content-Type: application/json" \
-  -d '{
-    "packageId": "PKG-1001",
-    "driverId": "1",
-    "status": "delivered",
-    "timestamp": "2026-05-15T10:00:00.000Z"
-  }'
-```
-
-Add one failed package for driver `1`:
-
-```bash
-curl -X POST http://localhost:3000/delivery-events \
-  -H "Content-Type: application/json" \
-  -d '{
-    "packageId": "PKG-1002",
-    "driverId": "1",
-    "status": "failed",
-    "timestamp": "2026-05-15T11:00:00.000Z"
-  }'
-```
-
-Add a package that changes status. This tests that statistics use the latest status for a package:
-
-```bash
-curl -X POST http://localhost:3000/delivery-events \
-  -H "Content-Type: application/json" \
-  -d '{
-    "packageId": "PKG-1003",
-    "driverId": "1",
-    "status": "picked_up",
-    "timestamp": "2026-05-15T09:30:00.000Z"
-  }'
+  -d '{"packageId":"PKG-1001","driverId":"1","status":"delivered","timestamp":"2026-05-15T10:00:00.000Z"}'
 ```
 
 ```bash
 curl -X POST http://localhost:3000/delivery-events \
   -H "Content-Type: application/json" \
-  -d '{
-    "packageId": "PKG-1003",
-    "driverId": "1",
-    "status": "delivered",
-    "timestamp": "2026-05-15T12:00:00.000Z"
-  }'
-```
-
-Add an in-transit package and a returned package:
-
-```bash
-curl -X POST http://localhost:3000/delivery-events \
-  -H "Content-Type: application/json" \
-  -d '{
-    "packageId": "PKG-1004",
-    "driverId": "1",
-    "status": "in_transit",
-    "timestamp": "2026-05-15T13:00:00.000Z"
-  }'
+  -d '{"packageId":"PKG-1002","driverId":"1","status":"failed","timestamp":"2026-05-15T11:00:00.000Z"}'
 ```
 
 ```bash
 curl -X POST http://localhost:3000/delivery-events \
   -H "Content-Type: application/json" \
-  -d '{
-    "packageId": "PKG-1005",
-    "driverId": "1",
-    "status": "returned",
-    "timestamp": "2026-05-15T14:00:00.000Z"
-  }'
+  -d '{"packageId":"PKG-1003","driverId":"1","status":"picked_up","timestamp":"2026-05-15T09:30:00.000Z"}'
+```
+
+```bash
+curl -X POST http://localhost:3000/delivery-events \
+  -H "Content-Type: application/json" \
+  -d '{"packageId":"PKG-1003","driverId":"1","status":"delivered","timestamp":"2026-05-15T12:00:00.000Z"}'
+```
+
+```bash
+curl -X POST http://localhost:3000/delivery-events \
+  -H "Content-Type: application/json" \
+  -d '{"packageId":"PKG-1004","driverId":"1","status":"in_transit","timestamp":"2026-05-15T13:00:00.000Z"}'
+```
+
+```bash
+curl -X POST http://localhost:3000/delivery-events \
+  -H "Content-Type: application/json" \
+  -d '{"packageId":"PKG-1005","driverId":"1","status":"returned","timestamp":"2026-05-15T14:00:00.000Z"}'
 ```
 
 Each event should return:
@@ -222,9 +217,9 @@ Each event should return:
 id, packageId, driverId, status, timestamp, createdAt
 ```
 
-### 4. Query Driver 1 Statistics
+### 4. Query Statistics
 
-Query delivery rate for driver `1` in the `north` region:
+Delivery rate for driver `1` in the `north` region:
 
 ```bash
 curl "http://localhost:3000/delivery-statistics?metric=delivery_rate&driverIds=1&regions=north&from=2026-05-15&to=2026-05-15"
@@ -246,21 +241,11 @@ Expected important fields:
 
 Why `0.4`?
 
-Driver `1` has 5 packages:
-
-- `PKG-1001`: delivered
-- `PKG-1002`: failed
-- `PKG-1003`: delivered, because the latest status is delivered
-- `PKG-1004`: in_transit
-- `PKG-1005`: returned
-
-So the delivery rate is:
-
 ```text
-2 delivered / 5 total = 0.4
+2 delivered packages / 5 total packages = 0.4
 ```
 
-Query total packages:
+Other useful checks:
 
 ```bash
 curl "http://localhost:3000/delivery-statistics?metric=total_packages&driverIds=1&regions=north&from=2026-05-15&to=2026-05-15"
@@ -272,8 +257,6 @@ Expected `value`:
 5
 ```
 
-Query failure rate:
-
 ```bash
 curl "http://localhost:3000/delivery-statistics?metric=failure_rate&driverIds=1&regions=north&from=2026-05-15&to=2026-05-15"
 ```
@@ -283,8 +266,6 @@ Expected `value`:
 ```json
 0.2
 ```
-
-Query average deliveries per day:
 
 ```bash
 curl "http://localhost:3000/delivery-statistics?metric=average_deliveries_per_day&driverIds=1&regions=north&from=2026-05-15&to=2026-05-15"
@@ -296,123 +277,7 @@ Expected `value`:
 2
 ```
 
-## Larger Manual Dataset
-
-If you want to test several drivers and regions, run these after uploading the sample 5-driver file.
-
-These commands repeat the same endpoint on purpose so they are easy to copy and run one by one.
-
-South region events:
-
-```bash
-curl -X POST http://localhost:3000/delivery-events \
-  -H "Content-Type: application/json" \
-  -d '{"packageId":"PKG-2001","driverId":"2","status":"delivered","timestamp":"2026-05-15T10:15:00.000Z"}'
-```
-
-```bash
-curl -X POST http://localhost:3000/delivery-events \
-  -H "Content-Type: application/json" \
-  -d '{"packageId":"PKG-2002","driverId":"2","status":"failed","timestamp":"2026-05-15T15:45:00.000Z"}'
-```
-
-```bash
-curl -X POST http://localhost:3000/delivery-events \
-  -H "Content-Type: application/json" \
-  -d '{"packageId":"PKG-3001","driverId":"3","status":"delivered","timestamp":"2026-05-15T16:00:00.000Z"}'
-```
-
-```bash
-curl -X POST http://localhost:3000/delivery-events \
-  -H "Content-Type: application/json" \
-  -d '{"packageId":"PKG-3002","driverId":"3","status":"failed","timestamp":"2026-05-15T17:00:00.000Z"}'
-```
-
-West and east region events:
-
-```bash
-curl -X POST http://localhost:3000/delivery-events \
-  -H "Content-Type: application/json" \
-  -d '{"packageId":"PKG-4001","driverId":"4","status":"failed","timestamp":"2026-05-15T12:30:00.000Z"}'
-```
-
-```bash
-curl -X POST http://localhost:3000/delivery-events \
-  -H "Content-Type: application/json" \
-  -d '{"packageId":"PKG-4002","driverId":"4","status":"returned","timestamp":"2026-05-15T18:00:00.000Z"}'
-```
-
-```bash
-curl -X POST http://localhost:3000/delivery-events \
-  -H "Content-Type: application/json" \
-  -d '{"packageId":"PKG-5001","driverId":"5","status":"delivered","timestamp":"2026-05-15T19:00:00.000Z"}'
-```
-
-```bash
-curl -X POST http://localhost:3000/delivery-events \
-  -H "Content-Type: application/json" \
-  -d '{"packageId":"PKG-5002","driverId":"5","status":"picked_up","timestamp":"2026-05-15T20:00:00.000Z"}'
-```
-
-Second-day events:
-
-```bash
-curl -X POST http://localhost:3000/delivery-events \
-  -H "Content-Type: application/json" \
-  -d '{"packageId":"PKG-1006","driverId":"1","status":"delivered","timestamp":"2026-05-16T09:00:00.000Z"}'
-```
-
-```bash
-curl -X POST http://localhost:3000/delivery-events \
-  -H "Content-Type: application/json" \
-  -d '{"packageId":"PKG-2003","driverId":"2","status":"delivered","timestamp":"2026-05-16T10:00:00.000Z"}'
-```
-
-```bash
-curl -X POST http://localhost:3000/delivery-events \
-  -H "Content-Type: application/json" \
-  -d '{"packageId":"PKG-3003","driverId":"3","status":"failed","timestamp":"2026-05-16T11:00:00.000Z"}'
-```
-
-```bash
-curl -X POST http://localhost:3000/delivery-events \
-  -H "Content-Type: application/json" \
-  -d '{"packageId":"PKG-5003","driverId":"5","status":"delivered","timestamp":"2026-05-16T12:00:00.000Z"}'
-```
-
-Useful checks after loading the larger dataset:
-
-```bash
-curl "http://localhost:3000/delivery-statistics?metric=total_packages&from=2026-05-15&to=2026-05-15"
-```
-
-Expected `value`:
-
-```json
-13
-```
-
-```bash
-curl "http://localhost:3000/delivery-statistics?metric=delivery_rate&regions=south&from=2026-05-15&to=2026-05-15"
-```
-
-Expected `value`:
-
-```json
-0.5
-```
-
-```bash
-curl "http://localhost:3000/delivery-statistics?metric=average_deliveries_per_day&from=2026-05-15&to=2026-05-16"
-```
-
-Expected `value`:
-
-```json
-4
-```
-
-## API Reference
+## API Summary
 
 ### `GET /health`
 
@@ -432,32 +297,32 @@ Required columns:
 - `email`
 - `region`
 
-Regions:
+Supported regions:
 
 ```text
 north, south, east, west
 ```
 
+Regions are case-insensitive on upload. For example, `North` is stored as `north`.
+
 ### `POST /delivery-events`
 
-Records a delivery event.
+Records one delivery event.
 
-Request body:
+Required JSON fields:
 
-```json
-{
-  "packageId": "PKG-1001",
-  "driverId": "1",
-  "status": "delivered",
-  "timestamp": "2026-05-15T10:00:00.000Z"
-}
-```
+- `packageId`
+- `driverId`
+- `status`
+- `timestamp`
 
-Statuses:
+Supported statuses:
 
 ```text
 picked_up, in_transit, delivered, failed, returned
 ```
+
+The driver must already exist.
 
 ### `GET /delivery-statistics`
 
@@ -471,7 +336,7 @@ Query parameters:
 | `driverIds` | no | `1,2` | Omit for all drivers |
 | `regions` | no | `north,east` | Omit for all regions |
 | `from` | no | `2026-05-15` | Must be provided with `to` |
-| `to` | no | `2026-05-16` | Inclusive date; must be provided with `from` |
+| `to` | no | `2026-05-15` | Inclusive date; must be provided with `from` |
 
 If `from` and `to` are omitted, the API queries the current day.
 
@@ -498,9 +363,9 @@ Metric definitions:
 
 `returned` is tracked, but it does not count as `failed`.
 
-## Validation And Errors
+## Errors
 
-Validation errors return:
+Validation and business errors use this shape:
 
 ```json
 {
@@ -532,19 +397,14 @@ src/
   common/
   config/
   db/
+  docs/
   modules/
     drivers/
     delivery-events/
     statistics/
 ```
 
-Each feature module has:
-
-- routes
-- controller
-- schema
-- service
-- repository
+Each feature module has routes, a controller, a schema, a service, and a repository.
 
 The request flow is:
 
@@ -557,27 +417,29 @@ HTTP request
   -> PostgreSQL
 ```
 
+The `docs/` folder contains reusable OpenAPI schemas for Swagger.
+
 Prisma Client is generated into `src/generated/prisma/client`. That folder is ignored by git because it is generated code.
 
 ## Useful Commands
 
 ```bash
-npm run dev          # start API in watch mode
-npm run build        # compile TypeScript
-npm start            # run compiled app
-npm test             # run unit tests
+npm run dev              # start API in watch mode
+npm run build            # compile TypeScript
+npm start                # run compiled app
+npm test                 # run unit tests
 npm run test:integration # run API + database integration tests
-npm run test:all     # run build, unit tests, and integration tests
-npm run db:deploy    # apply existing migrations
-npm run db:migrate   # create/apply local development migrations
-npm run db:generate  # generate Prisma Client
-npm run db:studio    # open Prisma Studio
-docker compose down  # stop PostgreSQL
+npm run test:all         # run build, unit tests, and integration tests
+npm run db:deploy        # apply existing migrations
+npm run db:migrate       # create/apply local development migrations
+npm run db:generate      # generate Prisma Client
+npm run db:studio        # open Prisma Studio
+docker compose down      # stop PostgreSQL
 ```
 
 ## Automated Checks
 
-Run these before submitting changes:
+Run these before submitting:
 
 ```bash
 npm run build
@@ -586,6 +448,6 @@ npm run test:integration
 npm audit --audit-level=moderate
 ```
 
-`npm run test:integration` needs PostgreSQL running because it tests the real API flow against the database. The integration tests use `INT-*` driver and package IDs and only clean up their own test data.
+`npm run test:integration` needs PostgreSQL running because it tests the real API flow against the database.
 
-GitHub Actions also runs these checks in `.github/workflows/ci.yml`.
+The integration tests use `INT-*` driver and package IDs, and only clean up their own test data.
