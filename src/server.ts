@@ -7,7 +7,7 @@ const app = await buildApp();
 const shutdown = async () => {
   app.log.info("Shutting down Relay Engine");
   // Close the HTTP server and database connection so local runs and containers
-  // stop cleanly when they receive Ctrl+C or a termination signal.
+  // stop when they receive Ctrl+C or a termination signal.
   await app.close();
   await prisma.$disconnect();
 };
