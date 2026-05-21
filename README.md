@@ -297,6 +297,8 @@ Required columns:
 - `email`
 - `region`
 
+`phone_number` must be 7 to 20 characters and use normal phone characters: numbers, spaces, `+`, `.`, `-`, or parentheses.
+
 Supported regions:
 
 ```text

@@ -16,6 +16,14 @@ const HEADER_ALIASES: Record<keyof DriverInput, string[]> = {
   region: ["region"]
 };
 
+const CANONICAL_HEADERS: Record<keyof DriverInput, string> = {
+  driverId: "driver_id",
+  name: "name",
+  phoneNumber: "phone_number",
+  email: "email",
+  region: "region"
+};
+
 export class DriversService {
   constructor(private readonly driversRepository = new DriversRepository()) {}
 
@@ -27,6 +35,8 @@ export class DriversService {
     if (records.length === 0) {
       throw badRequest("CSV file must contain at least one driver row");
     }
+
+    this.validateRequiredHeaders(records[0]);
 
     const drivers: DriverInput[] = [];
     const seenDriverIds = new Set<string>();
@@ -102,6 +112,20 @@ export class DriversService {
       // the database enum values are lowercase.
       region: this.readAliasedValue(normalizedHeaders, HEADER_ALIASES.region)?.toLowerCase()
     };
+  }
+
+  private validateRequiredHeaders(record: CsvRecord) {
+    const headers = new Set(Object.keys(record).map((header) => header.trim().toLowerCase()));
+    const missingColumns = (Object.keys(HEADER_ALIASES) as Array<keyof DriverInput>)
+      .filter((fieldName) => !HEADER_ALIASES[fieldName].some((alias) => headers.has(alias)))
+      .map((fieldName) => CANONICAL_HEADERS[fieldName]);
+
+    if (missingColumns.length > 0) {
+      throw badRequest("Driver CSV is missing required columns", {
+        missingColumns,
+        requiredColumns: Object.values(CANONICAL_HEADERS)
+      });
+    }
   }
 
   private readAliasedValue(headers: Map<string, string | undefined>, aliases: string[]): string | undefined {

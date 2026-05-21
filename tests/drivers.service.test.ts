@@ -128,6 +128,50 @@ describe("DriversService", () => {
     expect(repository.upsertMany).not.toHaveBeenCalled();
   });
 
+  it("rejects files with missing required headers", async () => {
+    const { repository, service } = createService();
+
+    await expect(
+      service.importFromCsv(
+        Buffer.from(
+          [
+            "driver_id,name,email,region",
+            "1,Dwayne Jhonson,jhonson@gmail.com,north"
+          ].join("\n")
+        )
+      )
+    ).rejects.toMatchObject({
+      code: "VALIDATION_ERROR",
+      statusCode: 400,
+      message: "Driver CSV is missing required columns",
+      details: {
+        missingColumns: ["phone_number"]
+      }
+    } satisfies Partial<AppError>);
+
+    expect(repository.upsertMany).not.toHaveBeenCalled();
+  });
+
+  it("rejects rows with invalid phone numbers", async () => {
+    const { repository, service } = createService();
+
+    await expect(
+      service.importFromCsv(
+        Buffer.from(
+          [
+            "driver_id,name,phone_number,email,region",
+            "1,Dwayne Jhonson,not-a-phone,jhonson@gmail.com,north"
+          ].join("\n")
+        )
+      )
+    ).rejects.toMatchObject({
+      code: "VALIDATION_ERROR",
+      statusCode: 400
+    } satisfies Partial<AppError>);
+
+    expect(repository.upsertMany).not.toHaveBeenCalled();
+  });
+
   it("rejects files with no driver rows", async () => {
     const { repository, service } = createService();
 
